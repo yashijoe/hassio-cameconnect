@@ -1,6 +1,6 @@
 name: "Came Connect"
 description: "REST proxy to control Came gates via Home Assistant"
-version: "1.23"
+version: "1.24"
 slug: "came_connect"
 init: false
 startup: services
