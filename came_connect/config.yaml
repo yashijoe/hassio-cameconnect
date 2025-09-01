@@ -1,0 +1,27 @@
+name: "Came Connect"
+description: "Proxy REST per Came Connect"
+version: "1.0"
+slug: "came_connect"
+init: false
+startup: services
+arch:
+  - aarch64
+  - armv7
+  - amd64
+  - armhf
+  - i386
+
+ports:
+  "8080/tcp": "9002"
+
+options:
+  came_connect_client_id: ""
+  came_connect_client_secret: ""
+  came_connect_username: ""
+  came_connect_password: ""
+
+schema:
+  came_connect_client_id: str
+  came_connect_client_secret: str
+  came_connect_username: str
+  came_connect_password: str
