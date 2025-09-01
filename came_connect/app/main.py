@@ -333,59 +333,75 @@ def token_detail():
         "expires_in_s": (exp - now) if exp else None
     }
 
-@app.get("/devices/{device_id}/counters")
-def device_counters(device_id: int):
+@app.get("/debug/fullscan/{device_id}")
+def debug_fullscan(device_id: int, truncate: int = 4000, find: str | None = None):
     """
-    Reads /automations/{id}/status and tries to decode counters from States where CommandId == 18.
-    Returns multiple candidate decodings (16/32-bit, little/big-endian) to help identify total cycles.
+    Probe many possible Came endpoints for a given device_id (and its RootId if available).
+    Tries both /automations and /devices with common suffixes: status, commands, inputs, io,
+    maintenance, statistics, diagnostics, usage, history.
+    Returns HTTP status and body/json for each URL.
+    Query params:
+      - truncate: max body chars to return (default 4000)
+      - find: optional substring to search in response bodies (adds 'found': true)
     """
     access, base = ensure_token()
-    url = f"{base}/automations/{device_id}/status"
-    r = _request_with_refresh("GET", url)
-    if r.status_code != 200:
-        raise HTTPException(status_code=502, detail={"message": "status fetch failed", "status": r.status_code, "body": r.text})
-    payload = r.json().get("Data") or {}
-    states = payload.get("States") or []
-    entry18 = next((e for e in states if isinstance(e, dict) and e.get("CommandId") == 18), None)
-    data = entry18.get("Data") if entry18 else None
 
-    if not data or not isinstance(data, list):
-        return {"ok": True, "found": False, "reason": "no CommandId 18 or empty Data", "raw": payload}
-
-    # helpers
-    def u16_le(b0, b1): return (b1 << 8) | b0
-    def u16_be(b0, b1): return (b0 << 8) | b1
-    def u32_le(b0, b1, b2, b3): return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
-    def u32_be(b0, b1, b2, b3): return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
-
-    candidates = []
-    # scan 16-bit pairs
-    for i in range(0, len(data) - 1, 2):
+    def _safe_get(url: str):
         try:
-            candidates.append({"kind":"u16_le", "i":i, "value": u16_le(data[i], data[i+1])})
-            candidates.append({"kind":"u16_be", "i":i, "value": u16_be(data[i], data[i+1])})
-        except Exception:
-            pass
-    # scan 32-bit windows
-    for i in range(0, len(data) - 3, 1):
-        try:
-            candidates.append({"kind":"u32_le", "i":i, "value": u32_le(data[i], data[i+1], data[i+2], data[i+3])})
-            candidates.append({"kind":"u32_be", "i":i, "value": u32_be(data[i], data[i+1], data[i+2], data[i+3])})
-        except Exception:
-            pass
+            r = _request_with_refresh("GET", url)
+            body = r.text
+            hit = (find in body) if (find and body) else False
+            out = {"url": url, "status": r.status_code, "found": hit}
+            # try parse json
+            try:
+                out["json"] = r.json()
+                out["body"] = None
+            except Exception:
+                # keep (possibly truncated) text body
+                if body and len(body) > truncate:
+                    body = body[:truncate] + "...(truncated)"
+                out["body"] = body
+            return out
+        except Exception as e:
+            return {"url": url, "error": str(e)}
 
-    # try to guess likely counters (non-trivial positive values)
-    likely = [c for c in candidates if c["value"] > 0]
-    likely_sorted = sorted(likely, key=lambda x: x["value"])
+    # collect endpoints for device_id and (if present) its RootId
+    ids = [int(device_id)]
+    # try to discover RootId from /devices/{id}
+    try:
+        url_dev = f"{base}/devices/{device_id}"
+        rdev = _request_with_refresh("GET", url_dev)
+        if rdev.status_code == 200:
+            j = rdev.json()
+            root_id = (((j or {}).get("Data") or {}).get("RootId"))
+            if isinstance(root_id, int) and root_id not in ids:
+                ids.append(root_id)
+    except Exception:
+        root_id = None
+
+    # paths to try
+    prefixes = ["automations", "devices"]
+    suffixes = ["", "/status", "/commands", "/inputs", "/io",
+                "/maintenance", "/statistics", "/diagnostics", "/usage", "/history"]
+
+    urls = []
+    for did in ids:
+        for p in prefixes:
+            for s in suffixes:
+                urls.append(f"{base}/{p}/{did}{s}")
+
+    # de-dup just in case
+    urls = list(dict.fromkeys(urls))
+
+    results = [_safe_get(u) for u in urls]
 
     return {
         "ok": True,
         "base": base,
-        "url": url,
-        "entry18_updated_at": (entry18 or {}).get("UpdatedAt"),
-        "data_len": len(data),
-        "data": data,
-        "candidates_count": len(candidates),
-        "candidates_sample": likely_sorted[:20],  # first 20 ascending
-        "candidates_top": sorted(likely, key=lambda x: -x["value"])[:20],  # top 20 descending
+        "device_id": int(device_id),
+        "root_id": root_id if 'root_id' in locals() else None,
+        "tested": len(urls),
+        "truncate": truncate,
+        "find": find,
+        "results": results
     }
