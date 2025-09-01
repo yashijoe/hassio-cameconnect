@@ -15,7 +15,7 @@ CLIENT_SECRET = os.getenv("CAME_CONNECT_CLIENT_SECRET", "")
 USERNAME = os.getenv("CAME_CONNECT_USERNAME", "")
 PASSWORD = os.getenv("CAME_CONNECT_PASSWORD", "")
 
-# Tentiamo sia app.* sia beta.*
+# Let's try both app.\* and beta.\*
 API_BASE_CANDIDATES = [
     "https://app.cameconnect.net/api",
     "https://beta.cameconnect.net/api",
@@ -68,13 +68,13 @@ def fetch_token() -> Dict[str, Any]:
         "Authorization": _basic_auth(CLIENT_ID, CLIENT_SECRET),
     }
 
-    # Tentiamo auth-code e token su entrambe le base URL
+    # Let's try auth-code and token on both base URLs
     last_err = None
     for base in API_BASE_CANDIDATES:
         try:
             with httpx.Client(timeout=30.0, follow_redirects=True) as s:
-                # 1) ottieni authorization code
-                # Nota: Came richiede questi parametri/headers; username/password nel body x-www-form-urlencoded
+                # 1) obtain authorization code
+                # Note: Came requires these parameters/headers; username/password in the x-www-form-urlencoded body
                 auth_code_body = (
                     f"grant_type=authorization_code"
                     f"&username={httpx.QueryParams({'u': USERNAME})['u']}"
@@ -100,7 +100,7 @@ def fetch_token() -> Dict[str, Any]:
                     last_err = f"{base} auth-code: no code in response: {data}"
                     continue
 
-                # 2) scambia il code per token
+                # 2) exchange the code for a token
                 token_data = {
                     "grant_type": "authorization_code",
                     "code": code,
@@ -113,7 +113,7 @@ def fetch_token() -> Dict[str, Any]:
                     continue
 
                 tok = tr.json()
-                tok["_base"] = base  # ricordiamo quale base ha funzionato
+                tok["_base"] = base  # let's remember which base worked
                 save_token(tok)
                 return tok
         except Exception as e:
@@ -144,7 +144,7 @@ def _request_with_refresh(method: str, url: str, payload=None):
             r = s.get(url, headers=headers)
 
         if r.status_code == 401:
-            # token scaduto: rifacciamo login e riproviamo
+            # expired token: let's log in again and retry
             fetch_token()
             access, _ = ensure_token()
             headers["Authorization"] = f"Bearer {access}"
@@ -185,7 +185,7 @@ def health():
 
 @app.get("/devices/{device_id}/commands")
 def list_commands(device_id: int):
-    # elenco comandi con auto-refresh del token
+    # list of commands with auto-refresh of the token
     access, base = ensure_token()
     urls = [
         f"{base}/automations/{device_id}/commands",
