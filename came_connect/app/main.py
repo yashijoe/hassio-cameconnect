@@ -333,75 +333,73 @@ def token_detail():
         "expires_in_s": (exp - now) if exp else None
     }
 
-@app.get("/debug/fullscan/{device_id}")
-def debug_fullscan(device_id: int, truncate: int = 4000, find: str | None = None):
+@app.get("/debug/counters_probe/{device_id}")
+def counters_probe(device_id: int, target: int = 90135):
     """
-    Probe many possible Came endpoints for a given device_id (and its RootId if available).
-    Tries both /automations and /devices with common suffixes: status, commands, inputs, io,
-    maintenance, statistics, diagnostics, usage, history.
-    Returns HTTP status and body/json for each URL.
-    Query params:
-      - truncate: max body chars to return (default 4000)
-      - find: optional substring to search in response bodies (adds 'found': true)
+    Legge /automations/{id}/status, prende CommandId 18 (24 byte)
+    e prova decodifiche: u16/u32 (LE/BE), u24 (LE/BE), BCD (1-4 byte).
+    Se trova 'target' segnala gli offset e il tipo di decoding.
     """
     access, base = ensure_token()
+    url = f"{base}/automations/{device_id}/status"
+    r = _request_with_refresh("GET", url)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail={"message": "status fetch failed", "status": r.status_code, "body": r.text})
+    payload = (r.json() or {}).get("Data") or {}
+    states = payload.get("States") or []
+    entry18 = next((e for e in states if isinstance(e, dict) and e.get("CommandId") == 18), None)
+    data = (entry18 or {}).get("Data") or []
+    if not data or not isinstance(data, list):
+        return {"ok": True, "found": False, "reason": "no CommandId 18 data", "raw_len": len(data)}
 
-    def _safe_get(url: str):
-        try:
-            r = _request_with_refresh("GET", url)
-            body = r.text
-            hit = (find in body) if (find and body) else False
-            out = {"url": url, "status": r.status_code, "found": hit}
-            # try parse json
-            try:
-                out["json"] = r.json()
-                out["body"] = None
-            except Exception:
-                # keep (possibly truncated) text body
-                if body and len(body) > truncate:
-                    body = body[:truncate] + "...(truncated)"
-                out["body"] = body
-            return out
-        except Exception as e:
-            return {"url": url, "error": str(e)}
+    def u16_le(i): return (data[i+1] << 8) | data[i]
+    def u16_be(i): return (data[i] << 8) | data[i+1]
+    def u24_le(i): return (data[i+2] << 16) | (data[i+1] << 8) | data[i]
+    def u24_be(i): return (data[i] << 16) | (data[i+1] << 8) | data[i+2]
+    def u32_le(i): return (data[i+3] << 24) | (data[i+2] << 16) | (data[i+1] << 8) | data[i]
+    def u32_be(i): return (data[i] << 24) | (data[i+1] << 16) | (data[i+2] << 8) | data[i+3]
 
-    # collect endpoints for device_id and (if present) its RootId
-    ids = [int(device_id)]
-    # try to discover RootId from /devices/{id}
-    try:
-        url_dev = f"{base}/devices/{device_id}"
-        rdev = _request_with_refresh("GET", url_dev)
-        if rdev.status_code == 200:
-            j = rdev.json()
-            root_id = (((j or {}).get("Data") or {}).get("RootId"))
-            if isinstance(root_id, int) and root_id not in ids:
-                ids.append(root_id)
-    except Exception:
-        root_id = None
+    # BCD helper (interpreta n byte come BCD concatenato)
+    def bcd_val(i, n):
+        v = 0
+        for k in range(n):
+            b = data[i+k]
+            hi, lo = (b >> 4) & 0xF, b & 0xF
+            if hi > 9 or lo > 9:
+                return None
+            v = v * 100 + hi * 10 + lo
+        return v
 
-    # paths to try
-    prefixes = ["automations", "devices"]
-    suffixes = ["", "/status", "/commands", "/inputs", "/io",
-                "/maintenance", "/statistics", "/diagnostics", "/usage", "/history"]
-
-    urls = []
-    for did in ids:
-        for p in prefixes:
-            for s in suffixes:
-                urls.append(f"{base}/{p}/{did}{s}")
-
-    # de-dup just in case
-    urls = list(dict.fromkeys(urls))
-
-    results = [_safe_get(u) for u in urls]
+    hits = []
+    # u16
+    for i in range(0, len(data)-1):
+        for kind, fn in (("u16_le", u16_le), ("u16_be", u16_be)):
+            if fn(i) == target:
+                hits.append({"kind": kind, "i": i, "bytes": data[i:i+2]})
+    # u24
+    for i in range(0, len(data)-2):
+        for kind, fn in (("u24_le", u24_le), ("u24_be", u24_be)):
+            if fn(i) == target:
+                hits.append({"kind": kind, "i": i, "bytes": data[i:i+3]})
+    # u32
+    for i in range(0, len(data)-3):
+        for kind, fn in (("u32_le", u32_le), ("u32_be", u32_be)):
+            if fn(i) == target:
+                hits.append({"kind": kind, "i": i, "bytes": data[i:i+4]})
+    # BCD 1..4 bytes
+    for i in range(0, len(data)):
+        for n in (1,2,3,4):
+            if i+n <= len(data):
+                v = bcd_val(i, n)
+                if v == target:
+                    hits.append({"kind": f"bcd{n}", "i": i, "bytes": data[i:i+n]})
 
     return {
         "ok": True,
         "base": base,
-        "device_id": int(device_id),
-        "root_id": root_id if 'root_id' in locals() else None,
-        "tested": len(urls),
-        "truncate": truncate,
-        "find": find,
-        "results": results
+        "url": url,
+        "data_len": len(data),
+        "data": data,
+        "target": target,
+        "hits": hits
     }
