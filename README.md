@@ -10,7 +10,7 @@ It manages login, token refresh, and provides normalized status and command endp
 ## Credentials required
 You need to provide the same credentials you use in the Came Connect app:
 - **Client ID** and **Client Secret** (from the Came Connect web app / developer portal)
-- **Username** (your Came Connect account email)
+- **Username** (your Came Connect account user)
 - **Password** (your Came Connect account password)
 
 These values are entered in the add-on **Configuration** page in Home Assistant.
