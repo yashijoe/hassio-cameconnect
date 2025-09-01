@@ -1,3 +1,3 @@
 # Came Connect Add-on
 
-Proxy REST per controllare i cancelli Came tramite Home Assistant.
+REST proxy to control Came gates via Home Assistant
