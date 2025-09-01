@@ -17,13 +17,6 @@ These values are entered in the add-on **Configuration** page in Home Assistant.
 
 ---
 
-## Finding your Device ID
-Each Came gate registered in your account has a unique **Device ID**.
-
-- Log in to [https://www.cameconnect.net](https://www.cameconnect.net), open your device page and check the URL:  
-  e.g. `https://www.cameconnect.net/home/devices/214319` → here the Device ID is `214319`.
-
-
 ## How to find your Client ID and Client Secret
 
 Came Connect uses OAuth2 to authenticate.  
@@ -42,3 +35,11 @@ To find them:
 7. Copy these two values and paste them into the add-on **Configuration** in Home Assistant.
 
 ⚠️ Important: keep Client ID and Client Secret private. Do not share them.
+
+## How to find your your Device ID
+Each Came gate registered in your account has a unique **Device ID**.
+
+- Log in to [https://www.cameconnect.net](https://www.cameconnect.net), open your device page and check the URL:  
+  e.g. `https://www.cameconnect.net/home/devices/214319` → here the Device ID is `214319`.
+
+  
