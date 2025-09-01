@@ -93,3 +93,21 @@ rest_command:
   came_ping:
     url: "http://homeassistant:9002/debug/ping/DEVICE-ID/{{ command_id }}"
     method: GET
+
+```
+
+### Command reference
+
+| YAML command        | Description                                                                 |
+|---------------------|-----------------------------------------------------------------------------|
+| `came_health`       | Checks if the add-on is running (`/health`).                                |
+| `came_status`       | Retrieves the normalized gate status (`open`, `closed`, `opening`, `closing`, `stopped`, `unknown`). |
+| `came_open`         | Sends the **Open** command to the gate.                                     |
+| `came_open_partial` | Sends the **Partial opening** command to the gate.                          |
+| `came_close`        | Sends the **Close** command to the gate.                                    |
+| `came_toggle`       | Sends the **Toggle (open/close)** command to the gate.                      |
+| `came_sequential`   | Sends the **Sequential** command to the gate.                               |
+| `came_stop`         | Sends the **Stop** command to the gate.                                     |
+| `came_token`        | Returns a simple check showing whether the authentication token is present. |
+| `came_token_detail` | Returns detailed information about the token, including expiration time.    |
+| `came_ping`         | Tests sending a command dynamically by passing a `command_id` variable.     |
