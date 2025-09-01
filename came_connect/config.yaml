@@ -1,5 +1,5 @@
 name: "Came Connect"
-description: "Proxy REST per Came Connect"
+description: "REST proxy to control Came gates via Home Assistant"
 version: "1.0"
 slug: "came_connect"
 init: false
