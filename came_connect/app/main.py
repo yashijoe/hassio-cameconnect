@@ -365,18 +365,13 @@ def device_status(device_id: int):
 @app.get("/devices/{device_id}/maneuvers")
 def maneuvers(device_id: int):
     """
-    Restituisce il numero di manovre calcolato dalla risposta 'info' (CommandId 18).
+    Restituisce il numero di manovre leggendo 'States' (CommandId=18) da endpoint alternativi.
     """
-    info_json = _fetch_info(device_id)
-    count = _decode_maneuvers_from_info(info_json)
+    states = _fetch_states(device_id)
+    count = _decode_maneuvers_from_states(states)
     if count is None:
-        raise HTTPException(status_code=502, detail={"message": "maneuvers not found in info", "info": info_json})
-    return {
-        "ok": True,
-        "device_id": device_id,
-        "maneuvers": count,
-        "source": "info/CommandId=18"
-    }
+        raise HTTPException(status_code=502, detail={"message": "maneuvers not found in States", "states": states})
+    return {"ok": True, "device_id": device_id, "maneuvers": count, "source": "States/CommandId=18"}
 # ---- fine Manovre ----
 
 
