@@ -178,6 +178,76 @@ def _try_command_requests(access: str, base: str, device_id: int, command_id: in
             last = {"ok": False, "method": method, "url": url, "error": str(e)}
     return last or {"ok": False, "error": "unknown"}
 
+
+# ---- Manovre ----
+def _fetch_info(device_id: int) -> dict:
+    """
+    Tenta a leggere l'INFO del device provando entrambe le famiglie di endpoint,
+    come fa la webapp Came: /automations/... e /devices/...
+    Ritorna il JSON parsato (dict) oppure solleva HTTPException.
+    """
+    access, base = ensure_token()
+    candidates = [
+        f"{base}/automations/{device_id}/info",
+        f"{base}/devices/{device_id}/info",
+    ]
+    last = None
+    for url in candidates:
+        r = _request_with_refresh("GET", url)
+        if r.status_code == 200:
+            try:
+                return r.json()
+            except Exception:
+                raise HTTPException(status_code=502, detail={"message": "invalid JSON from info", "url": url, "raw": r.text})
+        last = {"status": r.status_code, "url": url, "body": r.text}
+    raise HTTPException(status_code=502, detail={"message": "no info endpoint worked", "last": last})
+
+
+def _decode_maneuvers_from_info(info_json: dict) -> int | None:
+    """
+    Estrae il contatore 'manovre' dal blocco States con CommandId=18.
+    Dalla tua risposta:
+      Data = [..., 176, 82, ..., 176, 77, ...]
+    Il valore è la somma di due parole big-endian:
+      part1 = d[2]*256 + d[3]
+      part2 = d[6]*256 + d[7]
+      maneuvers = part1 + part2
+    """
+    data_list = info_json.get("Data")
+    if isinstance(data_list, list) and data_list:
+        device_entry = data_list[0]
+    else:
+        # alcune varianti restituiscono Data come oggetto singolo
+        device_entry = info_json.get("Data")
+
+    if not isinstance(device_entry, dict):
+        return None
+
+    states = device_entry.get("States") or []
+    # Prendi l'entry col CommandId 18
+    state18 = None
+    for s in states:
+        if isinstance(s, dict) and s.get("CommandId") == 18:
+            state18 = s
+            break
+
+    if not state18:
+        return None
+
+    d = state18.get("Data") or []
+    # servono almeno gli indici 2,3,6,7 come da esempio
+    if not (isinstance(d, list) and len(d) >= 8):
+        return None
+
+    try:
+        part1 = int(d[2]) * 256 + int(d[3])
+        part2 = int(d[6]) * 256 + int(d[7])
+        return part1 + part2
+    except Exception:
+        return None
+
+# ---- fine Manovre ----
+
 # ---- API ----
 @app.get("/health")
 def health():
@@ -297,6 +367,25 @@ def device_status(device_id: int):
         "updated_at": updated_at,
         "raw": data
     }
+
+# ---- Manovre ----
+@app.get("/devices/{device_id}/maneuvers")
+def maneuvers(device_id: int):
+    """
+    Restituisce il numero di manovre calcolato dalla risposta 'info' (CommandId 18).
+    """
+    info_json = _fetch_info(device_id)
+    count = _decode_maneuvers_from_info(info_json)
+    if count is None:
+        raise HTTPException(status_code=502, detail={"message": "maneuvers not found in info", "info": info_json})
+    return {
+        "ok": True,
+        "device_id": device_id,
+        "maneuvers": count,
+        "source": "info/CommandId=18"
+    }
+# ---- fine Manovre ----
+
 
 @app.get("/devices/{device_id}/command/{command_id}")
 def exec_command(device_id: int, command_id: int):
