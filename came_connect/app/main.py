@@ -347,6 +347,17 @@ def device_status(device_id: int):
             timestamps.append(e["UpdatedAt"])
     updated_at = max(timestamps) if timestamps else payload.get("ConfiguredLastUpdate")
 
+    # ---- Maneuvers come attributo dello /status ----
+    maneuvers = None
+    try:
+        maneuvers = _decode_maneuvers_from_states(states)
+        if maneuvers is None:
+            alt_states = _fetch_states(device_id)
+            maneuvers = _decode_maneuvers_from_states(alt_states)
+    except Exception:
+        maneuvers = None
+    # ---- Maneuvers come attributo dello /status ----
+    
     return {
         "ok": ok,
         "base": base,
@@ -358,6 +369,7 @@ def device_status(device_id: int):
         "online": online,
         "raw_code": code,
         "updated_at": updated_at,
+        "maneuvers": maneuvers,
         "raw": data
     }
 
