@@ -180,65 +180,58 @@ def _try_command_requests(access: str, base: str, device_id: int, command_id: in
 
 
 # ---- Manovre ----
-def _fetch_info(device_id: int) -> dict:
+def _fetch_states(device_id: int) -> list[dict]:
     """
-    Tenta a leggere l'INFO del device provando entrambe le famiglie di endpoint,
-    come fa la webapp Came: /automations/... e /devices/...
-    Ritorna il JSON parsato (dict) oppure solleva HTTPException.
+    Restituisce la lista 'States' del device provando più endpoint noti.
+    Serve perché /devices/{id}/info spesso è solo metadati.
     """
     access, base = ensure_token()
     candidates = [
-        f"{base}/automations/{device_id}/info",
-        f"{base}/devices/{device_id}/info",
+        f"{base}/automations/{device_id}/info",                # spesso include States
+        f"{base}/devices/{device_id}/info",                    # a volte solo metadati
+        f"{base}/automations/{device_id}/status",
+        f"{base}/devices/{device_id}/status",
+        f"{base}/devicestatus?devices=%5B{device_id}%5D",      # elenco con States
     ]
     last = None
     for url in candidates:
         r = _request_with_refresh("GET", url)
-        if r.status_code == 200:
-            try:
-                return r.json()
-            except Exception:
-                raise HTTPException(status_code=502, detail={"message": "invalid JSON from info", "url": url, "raw": r.text})
-        last = {"status": r.status_code, "url": url, "body": r.text}
-    raise HTTPException(status_code=502, detail={"message": "no info endpoint worked", "last": last})
+        if r.status_code != 200:
+            last = {"status": r.status_code, "url": url, "body": r.text}
+            continue
+        try:
+            j = r.json()
+        except Exception:
+            raise HTTPException(status_code=502, detail={"message": "invalid JSON", "url": url, "raw": r.text})
+
+        # normalizza varie forme:
+        data = j.get("Data")
+        # Caso: Data è lista con oggetto che ha States
+        if isinstance(data, list) and data:
+            if isinstance(data[0], dict) and data[0].get("States"):
+                return data[0]["States"]
+        # Caso: Data è oggetto singolo con States
+        if isinstance(data, dict) and data.get("States"):
+            return data["States"]
+        # Se non c'è States, continua coi prossimi endpoint
+        last = {"status": r.status_code, "url": url, "body": j}
+
+    raise HTTPException(status_code=502, detail={"message": "no States found in any endpoint", "last": last})
 
 
-def _decode_maneuvers_from_info(info_json: dict) -> int | None:
+def _decode_maneuvers_from_states(states: list[dict]) -> int | None:
     """
-    Estrae il contatore 'manovre' dal blocco States con CommandId=18.
-    Dalla tua risposta:
-      Data = [..., 176, 82, ..., 176, 77, ...]
-    Il valore è la somma di due parole big-endian:
-      part1 = d[2]*256 + d[3]
-      part2 = d[6]*256 + d[7]
-      maneuvers = part1 + part2
+    Estrae il contatore 'manovre' dal blocco con CommandId=18.
+    Dall'esempio: Data[2..3] e Data[6..7] -> due parole big-endian, sommate.
     """
-    data_list = info_json.get("Data")
-    if isinstance(data_list, list) and data_list:
-        device_entry = data_list[0]
-    else:
-        # alcune varianti restituiscono Data come oggetto singolo
-        device_entry = info_json.get("Data")
-
-    if not isinstance(device_entry, dict):
+    if not isinstance(states, list):
         return None
-
-    states = device_entry.get("States") or []
-    # Prendi l'entry col CommandId 18
-    state18 = None
-    for s in states:
-        if isinstance(s, dict) and s.get("CommandId") == 18:
-            state18 = s
-            break
-
+    state18 = next((s for s in states if isinstance(s, dict) and s.get("CommandId") == 18), None)
     if not state18:
         return None
-
     d = state18.get("Data") or []
-    # servono almeno gli indici 2,3,6,7 come da esempio
     if not (isinstance(d, list) and len(d) >= 8):
         return None
-
     try:
         part1 = int(d[2]) * 256 + int(d[3])
         part2 = int(d[6]) * 256 + int(d[7])
