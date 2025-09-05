@@ -42,7 +42,9 @@ Each Came gate registered in your account has a unique **Device ID**.
 - Log in to [https://www.cameconnect.net](https://www.cameconnect.net), open your device page and check the URL:  
   e.g. `https://www.cameconnect.net/home/devices/214319` → here the Device ID is `214319`.
 
-  
+
+
+
 ## Home Assistant configuration
 
 ### `configuration.yaml`
