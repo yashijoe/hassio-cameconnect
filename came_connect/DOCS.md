@@ -10,7 +10,7 @@ It manages login, token refresh, and provides normalized status and command endp
 ## Credentials required
 You need to provide the same credentials you use in the Came Connect app:
 - **Client ID** and **Client Secret** (from the Came Connect web app / developer portal)
-- **Username** (your Came Connect account email)
+- **Username** (your Came Connect account user)
 - **Password** (your Came Connect account password)
 
 These values are entered in the add-on **Configuration** page in Home Assistant.
@@ -42,58 +42,65 @@ Each Came gate registered in your account has a unique **Device ID**.
 - Log in to [https://www.cameconnect.net](https://www.cameconnect.net), open your device page and check the URL:  
   e.g. `https://www.cameconnect.net/home/devices/214319` → here the Device ID is `214319`.
 
-  
+
+---
+
 ## Home Assistant configuration
 
-You can integrate the add-on endpoints directly in Home Assistant by adding the following `rest_command` block to your `configuration.yaml`.  
-Replace `DEVICE-ID` with your actual Came device ID.
+### `configuration.yaml`
+```yaml
+sensor: !include sensors.yaml
+rest_command: !include rest_command.yaml
+cover: !include cover.yaml
+```
+
+### `rest_command.yaml`
+Replace `DEVICE-ID` with your Came device ID and adjust the host/port if needed (`homeassistant`, `homeassistant.local`, or the IP of your HA instance).
 
 ```yaml
-rest_command:
-  came_health:
-    url: "http://homeassistant:9002/health"
-    method: GET
+came_health:
+  url: "http://homeassistant:9002/health"
+  method: GET
 
-  came_status:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/status"
-    method: GET
+came_status:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/status"
+  method: GET
 
-  came_open:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/2"
-    method: POST
+came_open:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/2"
+  method: POST
 
-  came_open_partial:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/4"
-    method: POST
+came_open_partial:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/4"
+  method: POST
 
-  came_close:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/5"
-    method: POST
+came_close:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/5"
+  method: POST
 
-  came_toggle:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/8"
-    method: POST
+came_toggle:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/8"
+  method: POST
 
-  came_sequential:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/9"
-    method: POST
+came_sequential:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/9"
+  method: POST
 
-  came_stop:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/129"
-    method: POST
+came_stop:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/129"
+  method: POST
 
-  came_token:
-    url: "http://homeassistant:9002/debug/token"
-    method: GET
+came_token:
+  url: "http://homeassistant:9002/debug/token"
+  method: GET
 
-  came_token_detail:
-    url: "http://homeassistant:9002/debug/token_detail"
-    method: GET
+came_token_detail:
+  url: "http://homeassistant:9002/debug/token_detail"
+  method: GET
 
-  came_ping:
-    url: "http://homeassistant:9002/debug/ping/DEVICE-ID/{{ command_id }}"
-    method: GET
-
+came_ping:
+  url: "http://homeassistant:9002/debug/ping/DEVICE-ID/{{ command_id }}"
+  method: GET
 ```
 
 ### Command reference
@@ -114,7 +121,82 @@ rest_command:
 
 
 
+### `sensors.yaml`
+Replace `DEVICE-ID` with your Came device ID and adjust the host/port if needed (`homeassistant`, `homeassistant.local`, or the IP of your HA instance).
 
+```yaml
+- platform: rest
+  name: Came
+  unique_id: came
+  icon: mdi:gate
+  resource: "http://homeassistant:9002/devices/DEVICE-ID/status"
+  method: GET
+  value_template: "{{ value_json.state | default('unknown') }}"
+  scan_interval: 5
+  json_attributes:
+    - position
+    - moving
+    - direction
+    - online
+    - raw_code
+    - updated_at
+    - maneuvers
+```
+
+### `cover.yaml`
+```yaml
+- platform: template
+  covers:
+    gate:
+      friendly_name: "Came"
+      device_class: gate
+      icon_template: "mdi:gate"
+      availability_template: >
+        {{ state_attr('sensor.came', 'online') is not false }}
+
+      # State mapping
+      value_template: >-
+        {% set s = states('sensor.came')|lower %}
+        {% if s in ['open','aperto','apertura','parziale'] %}
+          open
+        {% elif s in ['closing','chiusura'] %}
+          closing
+        {% elif s in ['opening','apertura_in_corso'] %}
+          opening
+        {% else %}
+          closed
+        {% endif %}
+
+      # Optional: position if provided by the device (0-100)
+      position_template: >-
+        {{ state_attr('sensor.came', 'position') | int(0) }}
+
+      # Expose maneuvers counter as attribute
+      attribute_templates:
+        maneuvers: "{{ state_attr('sensor.came', 'maneuvers') }}"
+
+      open_cover:
+        service: rest_command.came_open
+      close_cover:
+        service: rest_command.came_close
+      stop_cover:
+        service: rest_command.came_stop
+
+      # Optional extra commands (can be triggered from automations)
+      extra_buttons:
+        - name: "Partial open"
+          icon: mdi:gate-open
+          service: rest_command.came_partial_open
+        - name: "Toggle"
+          icon: mdi:swap-horizontal
+          service: rest_command.came_toggle
+        - name: "Sequential"
+          icon: mdi:ray-start-end
+          service: rest_command.came_sequential
+```
+
+
+---
 
 # Test Came Connect via web
 
