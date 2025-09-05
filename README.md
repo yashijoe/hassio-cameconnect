@@ -45,55 +45,60 @@ Each Came gate registered in your account has a unique **Device ID**.
   
 ## Home Assistant configuration
 
-You can integrate the add-on endpoints directly in Home Assistant by adding the following `rest_command` block to your `configuration.yaml`.  
-Replace `DEVICE-ID` with your actual Came device ID.
+### `configuration.yaml`
+```yaml
+sensor: !include sensors.yaml
+rest_command: !include rest_command.yaml
+cover: !include cover.yaml
+```
+
+### `rest_command.yaml`
+Replace `DEVICE-ID` with your Came device ID and adjust the host/port if needed (`homeassistant`, `homeassistant.local`, or the IP of your HA instance).
 
 ```yaml
-rest_command:
-  came_health:
-    url: "http://homeassistant:9002/health"
-    method: GET
+came_health:
+  url: "http://homeassistant:9002/health"
+  method: GET
 
-  came_status:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/status"
-    method: GET
+came_status:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/status"
+  method: GET
 
-  came_open:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/2"
-    method: POST
+came_open:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/2"
+  method: POST
 
-  came_open_partial:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/4"
-    method: POST
+came_open_partial:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/4"
+  method: POST
 
-  came_close:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/5"
-    method: POST
+came_close:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/5"
+  method: POST
 
-  came_toggle:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/8"
-    method: POST
+came_toggle:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/8"
+  method: POST
 
-  came_sequential:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/9"
-    method: POST
+came_sequential:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/9"
+  method: POST
 
-  came_stop:
-    url: "http://homeassistant:9002/devices/DEVICE-ID/command/129"
-    method: POST
+came_stop:
+  url: "http://homeassistant:9002/devices/DEVICE-ID/command/129"
+  method: POST
 
-  came_token:
-    url: "http://homeassistant:9002/debug/token"
-    method: GET
+came_token:
+  url: "http://homeassistant:9002/debug/token"
+  method: GET
 
-  came_token_detail:
-    url: "http://homeassistant:9002/debug/token_detail"
-    method: GET
+came_token_detail:
+  url: "http://homeassistant:9002/debug/token_detail"
+  method: GET
 
-  came_ping:
-    url: "http://homeassistant:9002/debug/ping/DEVICE-ID/{{ command_id }}"
-    method: GET
-
+came_ping:
+  url: "http://homeassistant:9002/debug/ping/DEVICE-ID/{{ command_id }}"
+  method: GET
 ```
 
 ### Command reference
@@ -114,11 +119,9 @@ rest_command:
 
 
 
-## Sensor & cover in HA
-
-> Replace `DEVICE-ID` with your Came device ID and adjust the host/port if needed (`homeassistant`, `homeassistant.local`, or the IP of your HA instance).
-
 ### `sensors.yaml`
+Replace `DEVICE-ID` with your Came device ID and adjust the host/port if needed (`homeassistant`, `homeassistant.local`, or the IP of your HA instance).
+
 ```yaml
 - platform: rest
   name: Came
