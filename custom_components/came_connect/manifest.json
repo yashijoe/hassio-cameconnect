@@ -1,0 +1,11 @@
+{
+  "domain": "came_connect",
+  "name": "Came Connect",
+  "version": "2.0.0",
+  "config_flow": true,
+  "documentation": "https://github.com/yashijoe/hassio-cameconnect",
+  "issue_tracker": "https://github.com/yashijoe/hassio-cameconnect/issues",
+  "requirements": ["httpx>=0.27.0"],
+  "codeowners": ["@yashijoe"],
+  "iot_class": "cloud_polling"
+}

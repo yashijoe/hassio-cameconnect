@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Came Connect — Credenziali",
+        "description": "Inserisci le credenziali API di Came Connect.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client Secret",
+          "username": "Utente (email)",
+          "password": "Password"
+        }
+      },
+      "device": {
+        "title": "Came Connect — Seleziona dispositivo",
+        "description": "Seleziona il cancello da controllare, oppure inserisci l'ID dispositivo manualmente.",
+        "data": {
+          "device_id": "ID dispositivo",
+          "device_name": "Nome dispositivo (opzionale)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Credenziali non valide. Verifica Client ID, Client Secret, utente e password.",
+      "cannot_connect": "Impossibile connettersi al servizio Came Connect."
+    },
+    "abort": {
+      "already_configured": "Questo dispositivo è già configurato."
+    }
+  }
+}

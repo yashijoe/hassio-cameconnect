@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Came Connect — Credentials",
+        "description": "Enter your Came Connect API credentials.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client Secret",
+          "username": "Username (email)",
+          "password": "Password"
+        }
+      },
+      "device": {
+        "title": "Came Connect — Select Device",
+        "description": "Select the gate to control, or enter the device ID manually.",
+        "data": {
+          "device_id": "Device ID",
+          "device_name": "Device name (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid credentials. Check your Client ID, Client Secret, username and password.",
+      "cannot_connect": "Unable to connect to the Came Connect service."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  }
+}
